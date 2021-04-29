@@ -2,6 +2,7 @@ import json
 import bcrypt
 import jwt
 import re
+from datetime import datetime, timedelta
 
 from django.views     import View
 from django.http      import JsonResponse
@@ -58,19 +59,25 @@ class SignupView(View):
 class SigninView(View):
     def post(self, request):
         try: 
-            data     = json.loads(request.body)
-            email    = data['email']
-            password = data['password']
+            data = json.loads(request.body)
 
-            if not User.objects.filter(email = email).exists():
-                return JsonResponse({'mesage' : 'INVALID_USER'}, status = 401)
+            email    = data.get('email')
+            password = data.get('password')
+
+            if not (email and password):
+                return JsonResponse({'message':'KEY_ERROR'}, status=400)
+
+            if not User.objects.filter(email=email).exists():
+                return JsonResponse({'message':'INVALID_USER'}, status=401)
 
             user = User.objects.get(email=email)
-            if bcrypt.checkpw(password.encode('utf-8'), user.password.encode('utf-8')):
-                token = jwt.encode({'user_id': user.id}, SECRET_KEY, ALGORITHM)
-                return JsonResponse({'message': 'SUCCESS', 'access_token': token}, status=200)
-            return JsonResponse({'message': 'INVALID_PASSWORD'}, status=401)
-        except KeyError:
-            return JsonResponse({'message': 'KEY_ERROR'}, status=400)
 
+            if not bcrypt.checkpw(password.encode('utf-8'), user.password.encode('utf-8')):
+                return JsonResponse({'message':'INVALID_PASSWORD'}, status=401)
 
+            access_token = jwt.encode({'user_id':user.id, 'exp':datetime.utcnow()+timedelta(minutes=30)}, SECRET_KEY, ALGORITHM)
+            
+            return JsonResponse({'message':'SUCCESS', 'access_token':access_token}, status=200)
+
+        except ValueError:
+            return JsonResponse({'message':'VALUE_ERROR'}, status=400)
