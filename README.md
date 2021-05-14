@@ -15,13 +15,16 @@
 - AWS(EC2, RDS)
 - Bcrypt, JWT
 
+### API 문서
+https://documenter.getpostman.com/view/14759380/TzRVf6et
+
 ### 담당 구현 기능
 - 관계형 데이터베이스 모델링, MySQL 연동
 - csv 데이터 파일 및 파이썬 db_uploader 작성
 - 카테고리, 상품 리스트, 상세 페이지 조회 API 구현
-- 쿼리 스트링과 딕셔너리를 활용한 **다중 필터링 및 정렬 구현**
-- select_related, prefetch_related 메소드를 적용한 **쿼리 최적화**
-- **List Comprehension**을 적용한 조회 성능 향상
+- 쿼리 스트링과 딕셔너리를 활용한 다중 필터링 및 정렬 구현
+- select_related, prefetch_related 메소드를 적용한 쿼리 최적화
+- List Comprehension을 적용한 조회 성능 향상
 
 ### 백엔드 구현 기능
 Goals : 하나의 cycle 완성하기
