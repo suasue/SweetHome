@@ -4,18 +4,15 @@ from django.http      import JsonResponse
 from django.views     import View
 from django.db.models import Avg, Count, Q
 
-from user.models    import User
 from user.utils     import login_decorator
 from product.models import (
   Product, 
   ProductReview, 
   ReviewLike,
   ProductOption,
-  ProductColor,
-  ProductSize,
   Category
 )
-from order.models   import OrderProduct, Order, OrderStatus
+from order.models   import OrderProduct, Order
 from user.utils     import login_decorator
 
 DISCOUNT_PROUDCTS_COUNT = 5
@@ -34,7 +31,7 @@ class CategoryView(View):
                 } for detail_category in sub_category.detailcategory_set.all()]
             } for sub_category in category.subcategory_set.all()]
         } for category in Category.objects.all().order_by('id')]
-        return JsonResponse({'categories': category_list}, status=200)
+        return JsonResponse({'categories':category_list}, status=200)
 
 class ProductView(View):
     def get(self, request):
@@ -67,7 +64,7 @@ class ProductView(View):
 
             if order_condition in order_by_price:
                 products = products.extra(
-                        select={'discount_price' : 'original_price * (100 - discount_percentage) / 100'}).order_by(
+                        select={'discount_price':'original_price * (100 - discount_percentage) / 100'}).order_by(
                         order_by_price[order_condition])
 
             if order_condition == 'review':
@@ -95,35 +92,32 @@ class ProductView(View):
 
             products_count = products.count()
 
-            return JsonResponse({'products' : products_list, 'count' : products_count}, status=200)
+            return JsonResponse({'products':products_list, 'count':products_count}, status=200)
         
         except ValueError:
-            return JsonResponse({'message' : 'INVALID_VALUE'}, status=400)
+            return JsonResponse({'message':'INVALID_VALUE'}, status=400)
 
 class ProductCartView(View):
     @login_decorator
     def post(self, request):
         try:
-            user = request.user
-
+            user       = request.user
             data       = json.loads(request.body)
-            color      = ProductColor.objects.get(name=data['color'])
-            size       = ProductSize.objects.get(name=data['size'])
-            product_id = data['id']
-            
-            if not Product.objects.filter(id=product_id).exists():
-                return JsonResponse({'message':'INVALID_PRODUCT'}, status=404)
-            
-            quantity = int(data['quantity'])
-            product  = Product.objects.get(id=product_id)
-            
+            product_id = data.get('product_id', None)
+            color      = data.get('color', None)
+            size       = data.get('size', None)
+            quantity   = int(data.get('quantity', 0))
+
+            if not (product_id and color and size and quantity):
+                return JsonResponse({'message':'KEY_ERROR'}, status=400)
+
             if not ProductOption.objects.filter(
-                product=product,color=color, size=size
+                product_id=product_id,color__name=color, size__name=size
             ).exists():
                 return JsonResponse({'message':'INVALID_PRODUCT_OPTION'}, status=404)
 
             product_option = ProductOption.objects.get(
-                product=product,color=color, size=size
+                product_id=product_id,color__name=color, size__name=size
             )
             order = Order.objects.update_or_create(user=user, status_id=1)[0]
 
@@ -140,10 +134,7 @@ class ProductCartView(View):
 
         except json.decoder.JSONDecodeError:
             return JsonResponse({'message':'JSON_DECODE_ERROR'}, status=400)
-        
-        except KeyError:
-            return JsonResponse({'message':'KEY_ERROR'}, status=400)
-          
+
 class ProductDetailView(View):
     def get(self, request, product_id):
         if not Product.objects.filter(id=product_id).exists():
@@ -170,11 +161,14 @@ class ProductDetailView(View):
             'size'                : list(set([i.size.name for i in product.productoption_set.all()])),
             'color'               : list(set([i.color.name for i in product.productoption_set.all()])),
         }
-        return JsonResponse({'product': product_detail}, status=200)
+        return JsonResponse({'product':product_detail}, status=200)
 
 class ProductReviewView(View):
     def get(self, request, product_id):
         try:
+            if not Product.objects.filter(id=product_id).exists():
+	            return JsonResponse({'message':'INVALID_PRODUCT'}, status=404)
+
             product   = Product.objects.get(id=product_id)
             order     = request.GET.get('order', 'recent')
             rate_list = request.GET.getlist('rate', None)
@@ -216,39 +210,27 @@ class ProductReviewView(View):
         
         except KeyError:
             return JsonResponse({'message':'KEY_ERROR'}, status=400)
-        
-        except Product.DoesNotExist:
-            return JsonResponse({'message':'PRODUCT_DOES_NOT_EXIST'}, status=400)
 
 class ReviewLikeView(View):
     @login_decorator
     def post(self, request, product_id):
         try:
-            data     = json.loads(request.body)
-            review_id = data.get('review_id')
+            user      = request.user
+            data      = json.loads(request.body)
+            review_id = data.get('review_id', None)
 
-            user = request.user
+            if not review_id:
+	            return JsonResponse({'message':'KEY_ERROR'}, status=400)
 
             if not ProductReview.objects.filter(id=review_id).exists():
-                return JsonResponse({'message':'INVALID_REVIEW'}, status=401)
-
-            product_review = ProductReview.objects.get(id=review_id)
+                return JsonResponse({'message':'REVIEW_DOES_NOT_EXIST'}, status=404)
             
-            if user.productreview_set.filter(id=review_id).exists():
-                return JsonResponse({'message':'CANNOT_LIKE_YOUR_REVIEW'}, status=401)
-            
-            review_like, created = ReviewLike.objects.get_or_create(review=product_review, user=user)
+            if ReviewLike.objects.filter(user=user, review_id=review_id).exists():
+                ReviewLike.objects.filter(user=user, review_id=review_id).delete()
+                return JsonResponse({'message':'SUCCESS'}, status=204)
 
-            if not created:
-                review_like.delete()
-
-            return JsonResponse({'message':'SUCCESS'}, status=200)
+            ReviewLike.objects.create(user=user, review_id=review_id)
+            return JsonResponse({'message':'SUCCESS'}, status=201)
 
         except json.decoder.JSONDecodeError:
             return JsonResponse({'message':'JSON_DECODE_ERROR'}, status=400)
-        
-        except KeyError:
-            return JsonResponse({'message':'KEY_ERROR'}, status=400)
-        
-        except Product.DoesNotExist:
-            return JsonResponse({'message':'PRODUCT_DOES_NOT_EXIST'}, status=400)

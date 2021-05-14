@@ -9,7 +9,6 @@ from django.http      import JsonResponse
 from django.db.models import Q
 
 from my_settings import SECRET_KEY, ALGORITHM
-from .utils      import login_decorator
 from .models     import User
 
 MINIMUM_PASSWORD_LENGTH = 8
@@ -19,8 +18,7 @@ MAXIMUN_NAME_LENGTH     = 15
 class SignupView(View):
     def post(self, request):
         try:
-            data = json.loads(request.body)
-
+            data     = json.loads(request.body)
             email    = data.get('email')
             password = data.get('password')                               
             name     = data.get('name')
@@ -55,12 +53,10 @@ class SignupView(View):
         except ValueError:
             return JsonResponse({'message':'VALUE_ERROR'}, status=400)
 
-
 class SigninView(View):
     def post(self, request):
         try: 
-            data = json.loads(request.body)
-
+            data     = json.loads(request.body)
             email    = data.get('email')
             password = data.get('password')
 
